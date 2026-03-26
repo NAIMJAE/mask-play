@@ -13,6 +13,15 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Third-party derived engine (MIT): keep upstream style, allow @ts-nocheck
+  {
+    files: ["features/omok/vendor/gomoku/**/*.ts"],
+    rules: {
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "prefer-const": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

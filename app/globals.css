@@ -1,26 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #e8eaed;
+  --foreground: #202124;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji";
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 스프레드시트 작업 영역 느낌의 격자 (홈·설정 등) */
+.maskplay-sheet-grid {
+  --maskplay-grid-line: rgb(218 220 224 / 0.9);
+  background-color: #f8f9fa;
+  background-image:
+    linear-gradient(var(--maskplay-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--maskplay-grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
 }
