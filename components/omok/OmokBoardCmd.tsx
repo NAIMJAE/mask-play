@@ -62,7 +62,7 @@ export function OmokBoardCmd({
   const focusHeaderClass = focus ? stoneColorClass(focusCell) : "";
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col bg-black p-2 outline-none" aria-label="cmd omok board view">
+    <div className="flex h-[420px] w-full shrink-0 flex-col bg-black p-2 outline-none" aria-label="cmd omok board view">
       <div className="mb-2 border-b border-zinc-800 pb-1 text-xs text-zinc-300">
         -- BOARD VIEW -- place by command input (e.g. H8)
       </div>

@@ -355,16 +355,18 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
           status={game.status}
           lastMoves={game.lastMoves}
         />
-        <div
-          ref={logRef}
-          className="h-52 sm:h-60 lg:h-72 overflow-auto whitespace-nowrap text-[11px] leading-4 text-zinc-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {logs.map((line, idx) => (
-            <p key={`${idx}-${line}`} className="leading-4">
-              {line}
-            </p>
-          ))}
-          <form onSubmit={onSubmit} className="mt-1 flex items-center gap-2 text-xs">
+        <div className="flex min-h-14 h-52 flex-1 flex-col overflow-hidden whitespace-nowrap text-[11px] leading-4 text-zinc-300 sm:h-60 lg:h-72">
+          <div
+            ref={logRef}
+            className="min-h-0 h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {logs.map((line, idx) => (
+              <p key={`${idx}-${line}`} className="leading-4">
+                {line}
+              </p>
+            ))}
+          </div>
+          <form onSubmit={onSubmit} className="mt-1 flex shrink-0 items-center gap-2 border-t border-zinc-800 pt-1 text-xs">
             <span className="text-zinc-300">C:\\mask_play\\omok&gt;</span>
             <input
               ref={inputRef}
