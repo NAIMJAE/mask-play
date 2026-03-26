@@ -61,9 +61,10 @@ export function SpreadsheetAppFrame({
   sheetTab = "시트1",
   className = "",
   contentLayout = "fill",
-  workAreaGrid = false,
+  workAreaGrid: _workAreaGrid = false,
 }: SpreadsheetAppFrameProps) {
   const isCentered = contentLayout === "centered";
+  void _workAreaGrid;
 
   return (
     <div
@@ -122,23 +123,21 @@ export function SpreadsheetAppFrame({
       </div>
 
       <div className="border-b border-[#dadce0] bg-[#eef3ff] px-2 py-1.5 text-[11px] text-gray-700">
-        {statusBar}
+        <div className="flex min-h-4 w-full items-center">{statusBar}</div>
       </div>
 
       <div
-        className={`flex min-h-0 min-w-0 flex-1 overflow-auto ${
-          workAreaGrid && isCentered ? "maskplay-sheet-grid" : "bg-[#f8f9fa]"
-        } ${
+        className={`relative flex min-h-0 min-w-0 flex-1 overflow-auto bg-[#f8f9fa] ${
           isCentered
             ? "items-center justify-center p-4 sm:p-8"
-            : "flex-col p-2"
+            : "flex-col"
         }`}
       >
         <div
           className={
             isCentered
-              ? "flex w-full max-w-lg flex-col items-center"
-              : "flex min-h-0 min-w-0 flex-1 flex-col"
+              ? "relative z-[1] flex w-full max-w-lg flex-col items-center"
+              : "relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col"
           }
         >
           {children}

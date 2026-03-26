@@ -11,6 +11,55 @@ type StoneCell = "black" | "white" | null;
 type BoardMsg = StoneCell[][];
 type TurnMsg = "black" | "white";
 
+function chooseFallbackMove(board: BoardMsg): { row: number; col: number } | null {
+  const size = board.length;
+  const center = Math.floor(size / 2);
+  let hasAnyStone = false;
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (board[r][c] !== null) {
+        hasAnyStone = true;
+        break;
+      }
+    }
+    if (hasAnyStone) break;
+  }
+
+  const hasNeighbor = (row: number, col: number): boolean => {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = row + dr;
+        const nc = col + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        if (board[nr][nc] !== null) return true;
+      }
+    }
+    return false;
+  };
+
+  if (!hasAnyStone && board[center]?.[center] === null) {
+    return { row: center, col: center };
+  }
+
+  for (let radius = 0; radius < size; radius++) {
+    for (let r = Math.max(0, center - radius); r <= Math.min(size - 1, center + radius); r++) {
+      for (let c = Math.max(0, center - radius); c <= Math.min(size - 1, center + radius); c++) {
+        if (board[r][c] !== null) continue;
+        if (hasNeighbor(r, c)) return { row: r, col: c };
+      }
+    }
+  }
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (board[r][c] === null) return { row: r, col: c };
+    }
+  }
+  return null;
+}
+
 function boardToBitboards(board: BoardMsg): {
   blackBitboard: number[];
   whiteBitboard: number[];
@@ -63,6 +112,16 @@ self.onmessage = (e: MessageEvent<GomokuWorkerRequest>) => {
 
   const { id, board, aiStone, difficulty } = msg;
   try {
+    if (board.length !== 15 || BOARD_SIZE !== 15) {
+      const out: GomokuWorkerResponse = {
+        type: "result",
+        id,
+        move: chooseFallbackMove(board),
+      };
+      self.postMessage(out);
+      return;
+    }
+
     const { blackBitboard, whiteBitboard } = boardToBitboards(board);
     const humanPlayer: TurnMsg = aiStone === "black" ? "white" : "black";
     const raw = findBestMove(

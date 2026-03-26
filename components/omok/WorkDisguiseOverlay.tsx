@@ -35,6 +35,30 @@ const ROWS: string[][] = [
   ["영업1팀", "김민준", "스타유통", "물류비", "88", "3,200", "281,600", "28,160", "309,760", "2025-03-26", "완료", ""],
   ["영업2팀", "박지훈", "케이엠텍", "부품", "1,240", "2,150", "2,666,000", "266,600", "2,932,600", "2025-04-05", "출고", "재고 확인"],
   ["개발팀", "윤채원", "내부", "클라우드", "1", "1,980,000", "1,980,000", "198,000", "2,178,000", "2025-03-30", "청구", "월 사용료"],
+  ["영업1팀", "이서연", "동명상사", "정기점검", "42", "91,000", "3,822,000", "382,200", "4,204,200", "2025-04-07", "진행", "현장 일정 조율"],
+  ["영업1팀", "김민준", "리브커머스", "유지보수", "1", "3,600,000", "3,600,000", "360,000", "3,960,000", "2025-04-09", "승인대기", "견적 재발송"],
+  ["영업2팀", "최유진", "세진모듈", "부품 교체", "315", "14,500", "4,567,500", "456,750", "5,024,250", "2025-04-12", "발주", "선결제 요청"],
+  ["마케팅", "정하은", "내부", "리타겟팅", "1", "2,450,000", "2,450,000", "245,000", "2,695,000", "2025-04-06", "검토", "소재 AB테스트"],
+  ["마케팅", "강도윤", "외주 B", "영상편집", "18", "210,000", "3,780,000", "378,000", "4,158,000", "2025-04-03", "진행", "숏폼 2차"],
+  ["개발팀", "한지우", "알파파트너스", "SSO 연동", "1", "7,200,000", "7,200,000", "720,000", "7,920,000", "2025-04-18", "개발중", "보안 검수 대기"],
+  ["개발팀", "윤채원", "내부", "데이터 파이프라인", "1", "4,800,000", "4,800,000", "480,000", "5,280,000", "2025-04-20", "착수", "스키마 협의"],
+  ["인사총무", "문서현", "렌탈사 B", "비품 추가", "27", "28,000", "756,000", "75,600", "831,600", "2025-04-08", "납품", "회의실 비치"],
+  ["인사총무", "서준영", "내부", "건강검진", "1", "6,200,000", "6,200,000", "620,000", "6,820,000", "2025-04-30", "정산", "대상자 확정"],
+  ["재무", "임나래", "은행 C", "송금수수료", "1", "—", "128,000", "0", "128,000", "2025-04-01", "확정", "월 마감"],
+  ["재무", "오은재", "내부", "예산 재배분", "1", "0", "0", "0", "0", "2025-04-15", "보류", "대표 승인 필요"],
+  ["영업1팀", "이서연", "라온메디", "라이선스", "420", "9,800", "4,116,000", "411,600", "4,527,600", "2025-04-14", "출고", "수금 예정"],
+  ["영업2팀", "박지훈", "대신정공", "설치지원", "3", "950,000", "2,850,000", "285,000", "3,135,000", "2025-04-11", "진행", "현장 2회 방문"],
+  ["마케팅", "강도윤", "내부", "브랜드 리뉴얼", "1", "11,000,000", "11,000,000", "1,100,000", "12,100,000", "2025-05-10", "검토", "시안 3차"],
+  ["개발팀", "한지우", "픽셀웨이브", "Webhook 구축", "1", "3,300,000", "3,300,000", "330,000", "3,630,000", "2025-04-16", "개발중", "QA 예정"],
+  ["개발팀", "윤채원", "내부", "로그 적재비", "1", "740,000", "740,000", "74,000", "814,000", "2025-04-02", "청구", "월 사용료"],
+  ["인사총무", "서준영", "내부", "교육비", "1", "2,100,000", "2,100,000", "210,000", "2,310,000", "2025-04-25", "검토", "리더십 과정"],
+  ["재무", "임나래", "카드사 D", "법인카드 수수료", "1", "—", "96,500", "0", "96,500", "2025-04-04", "확정", "자동이체"],
+  ["영업1팀", "김민준", "아크시스템", "장비 임대", "6", "420,000", "2,520,000", "252,000", "2,772,000", "2025-04-22", "승인대기", "연장 옵션"],
+  ["영업2팀", "최유진", "오리온랩", "정기배송", "760", "3,100", "2,356,000", "235,600", "2,591,600", "2025-04-19", "출고", "주 2회"],
+  ["마케팅", "정하은", "내부", "오프라인 행사", "1", "13,500,000", "13,500,000", "1,350,000", "14,850,000", "2025-05-02", "기안", "부스 예약"],
+  ["개발팀", "한지우", "에스큐브", "배치 고도화", "1", "5,900,000", "5,900,000", "590,000", "6,490,000", "2025-04-28", "착수", "성능 목표"],
+  ["인사총무", "문서현", "내부", "복합기 렌탈", "3", "72,000", "216,000", "21,600", "237,600", "2025-04-09", "납품", "층별 배치"],
+  ["재무", "오은재", "내부", "분기 결산", "1", "0", "0", "0", "0", "2025-04-30", "진행", "전표 검토 중"],
 ];
 
 export function WorkDisguiseOverlay() {
@@ -45,7 +69,7 @@ export function WorkDisguiseOverlay() {
       aria-modal="true"
       aria-label="업무용 스프레드시트 보기"
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#dadce0] bg-[#f3f3f3] px-2 py-1.5 text-[10px] text-gray-700 sm:text-[11px]">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#dadce0] bg-[#f3f3f3] px-3 py-2 text-[11px] text-gray-700 sm:text-[12px]">
         <span className="truncate font-medium">
           분기별_매출·비용_취합_2025Q1.xlsx{" "}
           <span className="font-normal text-gray-500">· 마지막 저장: 오늘 14:32</span>
@@ -56,14 +80,14 @@ export function WorkDisguiseOverlay() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto bg-white">
-        <table className="w-max min-w-full border-collapse text-left text-[9px] text-gray-800 sm:text-[10px]">
+        <table className="w-max min-w-full border-collapse text-left text-[11px] text-gray-800 sm:text-[12px]">
           <thead className="sticky top-0 z-10 bg-[#f3f3f3] shadow-sm">
             <tr>
-              <th className="sticky left-0 z-20 w-8 border border-[#e0e0e0] bg-[#f3f3f3] px-1 py-1 text-center font-semibold text-gray-600" />
+              <th className="sticky left-0 z-20 w-10 border border-[#e0e0e0] bg-[#f3f3f3] px-1.5 py-1.5 text-center font-semibold text-gray-600" />
               {HEADER.map((h, i) => (
                 <th
                   key={h}
-                  className="min-w-[4.5rem] border border-[#e0e0e0] px-1.5 py-1 font-semibold text-gray-700 sm:min-w-[5.5rem]"
+                  className="min-w-[6.5rem] border border-[#e0e0e0] px-2 py-1.5 font-semibold text-gray-700 sm:min-w-[7.5rem]"
                   title={`${String.fromCharCode(65 + i)}1`}
                 >
                   {h}
@@ -74,13 +98,13 @@ export function WorkDisguiseOverlay() {
           <tbody>
             {ROWS.map((row, ri) => (
               <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}>
-                <td className="sticky left-0 z-[1] border border-[#e0e0e0] bg-inherit px-1 py-0.5 text-center text-gray-500">
+                <td className="sticky left-0 z-[1] border border-[#e0e0e0] bg-inherit px-1.5 py-1 text-center text-gray-500">
                   {ri + 2}
                 </td>
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
-                    className="whitespace-nowrap border border-[#e0e0e0] px-1.5 py-0.5 tabular-nums text-gray-800"
+                    className="whitespace-nowrap border border-[#e0e0e0] px-2 py-1 tabular-nums text-gray-800"
                   >
                     {ci >= 4 && ci <= 8 ? (
                       <span className={cell === "—" ? "text-gray-400" : ""}>
@@ -96,7 +120,7 @@ export function WorkDisguiseOverlay() {
           </tbody>
         </table>
 
-        <div className="border-t border-[#dadce0] bg-[#f8f9fa] px-2 py-2 text-[10px] text-gray-500">
+        <div className="border-t border-[#dadce0] bg-[#f8f9fa] px-3 py-2 text-[11px] text-gray-500">
           <p>
             ※ 샘플 데이터입니다. 실제 회사·거래처와 무관한 더미 값입니다.
           </p>

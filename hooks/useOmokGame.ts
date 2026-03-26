@@ -14,7 +14,7 @@ import type {
   OmokSetupConfig,
   Turn,
 } from "@/types/omok";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 type Phase = "playing" | "ended";
 
@@ -148,6 +148,15 @@ export function useOmokGame(config: OmokSetupConfig) {
   }, [config.firstTurn]);
 
   const aiEffectGen = useRef(0);
+  const [aiThinking, setAiThinking] = useState<{
+    active: boolean;
+    delayMs: number;
+    startedAt: number;
+  }>({
+    active: false,
+    delayMs: 0,
+    startedAt: 0,
+  });
 
   useEffect(() => {
     if (state.phase !== "playing" || state.status !== "playing") return;
@@ -155,6 +164,12 @@ export function useOmokGame(config: OmokSetupConfig) {
 
     const myGen = ++aiEffectGen.current;
     const boardSnapshot = state.board;
+    const delayMs = 700 + Math.floor(Math.random() * 1401);
+    setAiThinking({
+      active: true,
+      delayMs,
+      startedAt: Date.now(),
+    });
 
     const t = window.setTimeout(() => {
       void requestAiMoveAsync(
@@ -163,6 +178,11 @@ export function useOmokGame(config: OmokSetupConfig) {
         config.difficulty,
       ).then((move) => {
         if (myGen !== aiEffectGen.current) return;
+        setAiThinking({
+          active: false,
+          delayMs: 0,
+          startedAt: 0,
+        });
         if (!move) return;
         dispatch({
           type: "applyAiMove",
@@ -171,10 +191,15 @@ export function useOmokGame(config: OmokSetupConfig) {
           aiStone,
         });
       });
-    }, 280);
+    }, delayMs);
 
     return () => {
       aiEffectGen.current += 1;
+      setAiThinking({
+        active: false,
+        delayMs: 0,
+        startedAt: 0,
+      });
       clearTimeout(t);
     };
   }, [
@@ -195,5 +220,6 @@ export function useOmokGame(config: OmokSetupConfig) {
     humanMove,
     restart,
     aiStone,
+    aiThinking,
   };
 }

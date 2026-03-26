@@ -11,11 +11,13 @@ export type GameResult =
   | "playing";
 
 export type OmokDifficulty = "easy" | "normal" | "hard";
+export type OmokSkin = "excel" | "cmd";
 
 export interface OmokSetupConfig {
   difficulty: OmokDifficulty;
   playerColor: Turn;
   firstTurn: Turn;
+  skin: OmokSkin;
 }
 
 export interface CellCoord {

@@ -1,16 +1,13 @@
 import { SpreadsheetAppFrame } from "@/components/spreadsheet/SpreadsheetAppFrame";
-import {
-  sheetBtnPrimary,
-  sheetPanelCentered,
-} from "@/components/spreadsheet/sheetUi";
+import { SheetLikeCanvas, sheetCell } from "@/components/spreadsheet/SheetLikeCanvas";
 import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="box-border flex min-h-0 flex-1 flex-col p-1">
+    <main className="box-border flex min-h-0 flex-1 flex-col">
       <SpreadsheetAppFrame
         className="min-h-0 flex-1"
-        contentLayout="centered"
+        contentLayout="fill"
         workAreaGrid
         nameBox="A1"
         formulaPreview='="MaskPlay — 스프레드시트 스킨 미니게임"'
@@ -23,22 +20,34 @@ export default function HomePage() {
           </span>
         }
       >
-        <div className={`${sheetPanelCentered} flex flex-col items-center space-y-4 text-center`}>
-          <h1 className="text-xl font-semibold text-[#188038]">MaskPlay</h1>
-          <p className="leading-relaxed text-gray-700">
-            스프레드시트처럼 보이는 UI 안에서 짧게 즐기는 웹 미니게임입니다.
-            현재 MVP는 오목 한 종류만 있습니다.
-          </p>
-          <p className="text-xs text-gray-500">
+        <SheetLikeCanvas>
+          <div style={sheetCell(8, 9, 4, 1)} className="flex items-center px-1 text-xs text-gray-900">
+            MaskPlay
+          </div>
+          <div style={sheetCell(6, 10, 9, 1)} className="flex items-center px-1 text-[11px] text-gray-700">
+            스킨을 선택해서 같은 오목 게임을 다른 분위기로 플레이할 수 있습니다.
+            기본 스킨은 Excel입니다.
+          </div>
+          <div style={sheetCell(7, 12, 7, 1)} className="flex items-center px-1 text-[10px] text-gray-500">
             실제 Google Sheets·Excel이 아닙니다. 클라이언트 전용 데모입니다.
-          </p>
-          <Link
-            href="/games/omok/setup"
-            className={`inline-flex justify-center ${sheetBtnPrimary} min-w-[200px]`}
-          >
-            오목 게임 시작
-          </Link>
-        </div>
+          </div>
+          <div style={sheetCell(6, 14, 2, 1)} className="flex items-center px-1">
+            <Link
+              href="/games/omok/setup?skin=excel"
+              className="underline underline-offset-2 hover:text-[#1967d2]"
+            >
+              excel skin
+            </Link>
+          </div>
+          <div style={sheetCell(9, 14, 2, 1)} className="flex items-center px-1">
+            <Link
+              href="/games/omok/setup?skin=cmd"
+              className="underline underline-offset-2 hover:text-[#1967d2]"
+            >
+              cmd skin
+            </Link>
+          </div>
+        </SheetLikeCanvas>
       </SpreadsheetAppFrame>
     </main>
   );

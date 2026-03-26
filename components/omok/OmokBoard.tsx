@@ -15,9 +15,14 @@ interface OmokBoardProps {
   onActiveCellChange?: (ref: string) => void;
 }
 
-const COL_LABELS = Array.from({ length: BOARD_SIZE }, (_, i) =>
+const DISPLAY_COLS = 26;
+const DISPLAY_ROWS = 26;
+const DISPLAY_COL_LABELS = Array.from({ length: DISPLAY_COLS }, (_, i) =>
   String.fromCharCode(65 + i),
 );
+const DISPLAY_ROW_LABELS = Array.from({ length: DISPLAY_ROWS }, (_, i) => i + 1);
+const PLAYABLE_COL_START = Math.floor((DISPLAY_COLS - BOARD_SIZE) / 2);
+const PLAYABLE_ROW_START = Math.floor((DISPLAY_ROWS - BOARD_SIZE) / 2);
 
 function sameCoord(
   a: { row: number; col: number } | null,
@@ -63,20 +68,19 @@ export function OmokBoard({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-[#dadce0] bg-white shadow-sm">
+    <div className="flex min-h-0 w-full flex-1 flex-col border border-[#dadce0] bg-white">
       <div
-        className="grid min-h-0 min-w-0 flex-1 bg-white"
+        className="grid min-h-0 min-w-0 flex-1 content-start bg-white"
         style={{
-          height: "100%",
-          gridTemplateColumns: `2.25rem repeat(${BOARD_SIZE}, minmax(0, 1fr))`,
-          gridTemplateRows: `auto repeat(${BOARD_SIZE}, minmax(0, 1fr))`,
+          gridTemplateColumns: `2.25rem repeat(${DISPLAY_COLS}, minmax(0, 1fr))`,
+          gridTemplateRows: `1.75rem repeat(${DISPLAY_ROWS}, 1.9rem)`,
         }}
       >
         {/* 코너 */}
         <div className="border-b border-r border-[#dadce0] bg-[#f3f3f3]" />
 
-        {/* 열 머리글 A–O */}
-        {COL_LABELS.map((letter, c) => {
+        {/* 열 머리글 A–Z */}
+        {DISPLAY_COL_LABELS.map((letter, c) => {
           const colActive = active?.col === c;
           return (
             <div
@@ -90,30 +94,54 @@ export function OmokBoard({
           );
         })}
 
-        {board.map((row, r) => (
+        {DISPLAY_ROW_LABELS.map((displayRow, r) => (
           <div key={`r-${r}`} className="contents">
             <div
               className={`flex items-center justify-center border-b border-r border-[#dadce0] text-center text-[10px] font-medium text-gray-600 ${
                 active?.row === r ? "bg-[#d3e3fd]" : "bg-[#f3f3f3]"
               }`}
             >
-              {r + 1}
+              {displayRow}
             </div>
-            {row.map((cell, c) => {
+            {Array.from({ length: DISPLAY_COLS }, (_, c) => {
+              const boardRow = r - PLAYABLE_ROW_START;
+              const boardCol = c - PLAYABLE_COL_START;
+              const inPlayableArea =
+                boardRow >= 0 &&
+                boardRow < BOARD_SIZE &&
+                boardCol >= 0 &&
+                boardCol < BOARD_SIZE;
+              const cell = inPlayableArea ? board[boardRow][boardCol] : null;
               const isSelected = active?.row === r && active?.col === c;
               const canPlace =
-                status === "playing" && playable && cell === null;
+                inPlayableArea && status === "playing" && playable && cell === null;
 
               let fill = "bg-white";
               if (cell === "black") fill = "bg-black";
               if (cell === "white") fill = "bg-gray-300";
 
-              const isLastHuman = cell !== null && sameCoord(lastMoves.human, r, c);
-              const isLastAi = cell !== null && sameCoord(lastMoves.ai, r, c);
+              const isLastHuman = cell !== null && sameCoord(lastMoves.human, boardRow, boardCol);
+              const isLastAi = cell !== null && sameCoord(lastMoves.ai, boardRow, boardCol);
+              const isPlayableEdge =
+                inPlayableArea &&
+                (boardRow === 0 ||
+                  boardRow === BOARD_SIZE - 1 ||
+                  boardCol === 0 ||
+                  boardCol === BOARD_SIZE - 1);
+              const playableOuterBorder = inPlayableArea
+                ? `${boardRow === 0 ? "border-t-2 border-t-[#5f6368]" : ""} ${
+                    boardRow === BOARD_SIZE - 1 ? "border-b-2 border-b-[#5f6368]" : ""
+                  } ${boardCol === 0 ? "border-l-2 border-l-[#5f6368]" : ""} ${
+                    boardCol === BOARD_SIZE - 1
+                      ? "border-r-2 border-r-[#5f6368]"
+                      : ""
+                  }`
+                : "";
 
               let aria = `셀 ${formatSheetCellRef(r, c)}`;
               if (isLastHuman) aria += ", 내 마지막 수";
               if (isLastAi) aria += ", 상대 마지막 수";
+              if (inPlayableArea) aria += ", 착수 가능 영역";
 
               return (
                 <div
@@ -122,7 +150,7 @@ export function OmokBoard({
                   aria-label={aria}
                   onMouseEnter={() => setHover(r, c)}
                   onClick={() => {
-                    if (canPlace) onCellClick(r, c);
+                    if (canPlace) onCellClick(boardRow, boardCol);
                   }}
                   className={`relative box-border min-h-0 border-b border-r border-[#e0e0e0] ${fill} ${
                     isSelected
@@ -132,6 +160,8 @@ export function OmokBoard({
                     canPlace
                       ? "cursor-pointer hover:bg-blue-50/90"
                       : "cursor-default"
+                  } ${
+                    isPlayableEdge ? `z-[1] ${playableOuterBorder}` : ""
                   }`}
                 >
                   {isLastHuman && (

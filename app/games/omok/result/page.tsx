@@ -11,7 +11,7 @@ function ResultFallback() {
 
 export default function OmokResultPage() {
   return (
-    <main className="box-border flex min-h-0 flex-1 flex-col p-1">
+    <main className="box-border flex min-h-0 flex-1 flex-col">
       <Suspense fallback={<ResultFallback />}>
         <OmokResultClient />
       </Suspense>

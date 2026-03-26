@@ -8,7 +8,23 @@ let cachedConfig: OmokSetupConfig | null = null;
 function parseRaw(raw: string | null): OmokSetupConfig | null {
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as OmokSetupConfig;
+    const parsed = JSON.parse(raw) as Partial<OmokSetupConfig> | null;
+    if (!parsed) return null;
+    if (
+      (parsed.difficulty !== "easy" &&
+        parsed.difficulty !== "normal" &&
+        parsed.difficulty !== "hard") ||
+      (parsed.playerColor !== "black" && parsed.playerColor !== "white") ||
+      (parsed.firstTurn !== "black" && parsed.firstTurn !== "white")
+    ) {
+      return null;
+    }
+    return {
+      difficulty: parsed.difficulty,
+      playerColor: parsed.playerColor,
+      firstTurn: parsed.firstTurn,
+      skin: parsed.skin === "cmd" ? "cmd" : "excel",
+    };
   } catch {
     return null;
   }

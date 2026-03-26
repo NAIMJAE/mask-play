@@ -6,6 +6,7 @@ import { oppositeTurn } from "@/features/omok/logic/board";
 import type { Board, CellCoord, OmokDifficulty, Turn } from "@/types/omok";
 import { boardToGomokuBitboards } from "./boardToBitboards";
 import { findBestMove } from "../vendor/gomoku/gomokuEngine";
+import { chooseFallbackMove } from "./fallbackMove";
 
 export type GomokuEngineDifficulty = "easy" | "medium" | "hard";
 
@@ -28,6 +29,11 @@ export function getBestMove(
   currentTurn: Turn,
   options?: GetBestMoveOptions,
 ): CellCoord | null {
+  // 외부 엔진은 15x15 비트보드에 최적화되어 있어, 확장 보드에서는 폴백 AI를 사용합니다.
+  if (board.length !== 15) {
+    return chooseFallbackMove(board);
+  }
+
   const difficulty = mapMaskPlayDifficulty(
     options?.difficulty ?? "normal",
   );
