@@ -41,7 +41,7 @@ export default function HomePage() {
           </div>
           <div style={sheetCell(9, 14, 2, 1)} className="flex items-center px-1">
             <Link
-              href="/games/omok/setup?skin=cmd"
+              href="/games/cmd"
               className="underline underline-offset-2 hover:text-[#1967d2]"
             >
               cmd skin
