@@ -34,12 +34,13 @@ type RunStatus = "running" | "clearing" | "failed";
 const WIDTH = 540;
 const HEIGHT = 380;
 const BASE_PADDLE_UNITS = 10;
-const PADDLE_UNIT_PX = 12;
+const PADDLE_UNIT_PX = 10;
+const SIDE_PADDING = 4;
 const PADDLE_H = 12;
 const BALL_R = 6;
 const GRID_STEP = 6;
 const TICK_MS = 64;
-const PADDLE_STEP = GRID_STEP * 2;
+const PADDLE_STEP = GRID_STEP * 3;
 const BRICK_FONT_PX = 14;
 const BRICK_CHAR_PX = 8; // monospace 기준 문자 1칸 폭 추정치
 
@@ -70,7 +71,7 @@ function toGrid(value: number): number {
   return Math.round(value / GRID_STEP) * GRID_STEP;
 }
 
-function normalizeBallSpeed(ball: Ball, target = 12.8): Ball {
+function normalizeBallSpeed(ball: Ball, target = 10.8): Ball {
   const m = Math.hypot(ball.vx, ball.vy) || 1;
   const k = target / m;
   let vx = toGrid(ball.vx * k);
@@ -81,7 +82,18 @@ function normalizeBallSpeed(ball: Ball, target = 12.8): Ball {
 }
 
 function speedTargetFor(fastLevel: number): number {
-  return Math.min(24, 12.8 + fastLevel * 3.2);
+  return Math.min(20, 10.8 + fastLevel * 2.4);
+}
+
+function resolvePaddleBounceVx(rel: number): number {
+  // Discrete hit-zones for terminal-like, but varied rebound angles.
+  if (rel <= -0.75) return -GRID_STEP * 4;
+  if (rel <= -0.45) return -GRID_STEP * 3;
+  if (rel <= -0.15) return -GRID_STEP * 2;
+  if (rel < 0.15) return (Math.random() < 0.5 ? -1 : 1) * GRID_STEP;
+  if (rel < 0.45) return GRID_STEP * 2;
+  if (rel < 0.75) return GRID_STEP * 3;
+  return GRID_STEP * 4;
 }
 
 function stageFromCommand(lower: string): BricksStageId | null {
@@ -385,7 +397,9 @@ export function BricksPlayCmdClient() {
       if (lockRef.current === "running" && canStep && !workDisguiseOpen) {
         const paddle = paddleRef.current;
         const move = keysRef.current.left ? -PADDLE_STEP : keysRef.current.right ? PADDLE_STEP : 0;
-        paddle.x = toGrid(Math.max(10, Math.min(WIDTH - paddle.w - 10, paddle.x + move)));
+        paddle.x = toGrid(
+          Math.max(SIDE_PADDING, Math.min(WIDTH - paddle.w - SIDE_PADDING, paddle.x + move)),
+        );
 
         const nextBalls: Ball[] = [];
         const bricks = bricksRef.current;
@@ -418,7 +432,7 @@ export function BricksPlayCmdClient() {
             ball.vy > 0
           ) {
             const rel = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-            ball.vx = toGrid(rel * (GRID_STEP * 2));
+            ball.vx = resolvePaddleBounceVx(rel);
             ball.vy = -Math.abs(ball.vy);
             ball = normalizeBallSpeed(ball, speedTargetFor(itemStatsRef.current.fast));
           }
