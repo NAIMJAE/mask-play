@@ -215,6 +215,16 @@ export function BricksPlayCmdClient() {
     const tokenGap = 8;
     const brickH = 24;
     const maxY = HEIGHT - 74;
+    const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+    const colWidths = Array.from({ length: maxCols }, (_, col) => {
+      let w = 24;
+      for (const rowTokens of rows) {
+        const t = (rowTokens[col] ?? "").toUpperCase();
+        if (!t) continue;
+        w = Math.max(w, phaseWidthFor(t));
+      }
+      return w;
+    });
 
     const specialIndices = new Set<number>();
     const allTokenCount = rows.reduce((n, r) => n + r.length, 0);
@@ -237,7 +247,8 @@ export function BricksPlayCmdClient() {
         globalIndex += 1;
         const itemType = isSpecial ? pickWeighted(bp.itemWeights) : null;
         const textW = phaseWidthFor(baseWord);
-        if (cursorX + textW > WIDTH - 12) {
+        const colW = colWidths[col] ?? textW;
+        if (cursorX + colW > WIDTH - 12) {
           visualRow += 1;
           cursorX = baseX;
         }
@@ -262,7 +273,7 @@ export function BricksPlayCmdClient() {
           destroyed: false,
         };
         out.push(brick);
-        cursorX += textW + tokenGap;
+        cursorX += colW + tokenGap;
       }
       visualRow += 1;
     }

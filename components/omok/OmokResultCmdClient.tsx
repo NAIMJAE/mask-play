@@ -4,11 +4,17 @@ import { CmdFrame } from "@/components/cmd/CmdFrame";
 import { useOmokSetupFromStorage } from "@/hooks/useOmokSetupFromStorage";
 import type { GameResult } from "@/types/omok";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function parseOutcome(raw: string | null): GameResult | null {
   if (raw === "black-win" || raw === "white-win" || raw === "draw") return raw;
   return null;
+}
+
+interface StoredMoveRecord {
+  ref: string;
+  by: "player" | "cpu";
+  stone: "black" | "white";
 }
 
 export function OmokResultCmdClient() {
@@ -26,6 +32,27 @@ export function OmokResultCmdClient() {
     const n = raw ? Number(raw) : 0;
     return Number.isFinite(n) ? n : 0;
   }, []);
+  const moveRecords = useMemo<StoredMoveRecord[]>(() => {
+    if (typeof window === "undefined") return [];
+    const raw = sessionStorage.getItem("maskplay:omok:last-moves");
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (v): v is StoredMoveRecord =>
+          v &&
+          typeof v.ref === "string" &&
+          (v.by === "player" || v.by === "cpu") &&
+          (v.stone === "black" || v.stone === "white"),
+      );
+    } catch {
+      return [];
+    }
+  }, []);
+  const [replayLines, setReplayLines] = useState<string[]>([]);
+  const [replayDone, setReplayDone] = useState(false);
+  const replayTimersRef = useRef<number[]>([]);
 
   if (!outcome) {
     return (
@@ -43,6 +70,45 @@ export function OmokResultCmdClient() {
         (mine === "white" && outcome === "white-win");
   const result = outcome === "draw" ? "DRAW" : iWon ? "WIN" : "LOSE";
 
+  const clearReplayTimers = useCallback(() => {
+    replayTimersRef.current.forEach((id) => window.clearTimeout(id));
+    replayTimersRef.current = [];
+  }, []);
+
+  const startReplay = useCallback(() => {
+    clearReplayTimers();
+    setReplayDone(false);
+    if (moveRecords.length === 0) {
+      setReplayLines(["[REPLAY] No recorded moves found for this match."]);
+      setReplayDone(true);
+      return;
+    }
+    setReplayLines([
+      `[REPLAY] Starting move-by-move playback (${moveRecords.length} moves).`,
+    ]);
+    moveRecords.forEach((move, idx) => {
+      const timer = window.setTimeout(() => {
+        const no = String(idx + 1).padStart(2, "0");
+        const actor = move.by === "player" ? "PLAYER" : "CPU";
+        setReplayLines((prev) => [
+          ...prev,
+          `[${no}] ${actor} ${move.stone.toUpperCase()} -> ${move.ref}`,
+        ]);
+      }, (idx + 1) * 420);
+      replayTimersRef.current.push(timer);
+    });
+    const doneTimer = window.setTimeout(() => {
+      setReplayDone(true);
+      setReplayLines((prev) => [...prev, "[REPLAY] Playback complete."]);
+    }, moveRecords.length * 420 + 240);
+    replayTimersRef.current.push(doneTimer);
+  }, [clearReplayTimers, moveRecords]);
+
+  useEffect(() => {
+    startReplay();
+    return () => clearReplayTimers();
+  }, [clearReplayTimers, startReplay]);
+
   const reportLines = [
     "Match completed.",
     "--------------------------------",
@@ -52,6 +118,7 @@ export function OmokResultCmdClient() {
     `CPU difficulty  : ${(setup?.difficulty ?? "normal").toUpperCase()}`,
     "Session status  : CLOSED",
     "",
+    "Type 'replay' to run move playback again.",
     "Type 'restart' to play again.",
     "Type 'setup' to reconfigure.",
     "Type 'exit' to return home.",
@@ -66,6 +133,10 @@ export function OmokResultCmdClient() {
     setHistoryIndex(-1);
     if (cmd === "restart") {
       router.push("/games/omok/play");
+      return;
+    }
+    if (cmd === "replay") {
+      startReplay();
       return;
     }
     if (cmd === "setup") {
@@ -109,13 +180,20 @@ export function OmokResultCmdClient() {
     <CmdFrame
       title="C:\\WINDOWS\\system32\\cmd.exe"
       subtitle="MASKPLAY / RESULT"
-      footer={<span>enter command: restart | setup | exit</span>}
+      footer={<span>enter command: replay | restart | setup | exit</span>}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="min-h-0 flex-1 overflow-auto text-zinc-200">
           {reportLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
+          <p />
+          {replayLines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          <p className="text-zinc-400">
+            Replay status: {replayDone ? "DONE" : "RUNNING"}
+          </p>
           <form onSubmit={onSubmit} className="mt-1 flex items-center gap-2 text-xs">
             <span className="text-zinc-300">C:\\mask_play\\result&gt;</span>
             <input

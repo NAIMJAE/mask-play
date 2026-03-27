@@ -5,12 +5,53 @@ import { OmokBoardCmd } from "@/components/omok/OmokBoardCmd";
 import { useOmokGame } from "@/hooks/useOmokGame";
 import { useOmokSetupFromStorage } from "@/hooks/useOmokSetupFromStorage";
 import type { OmokSetupConfig } from "@/types/omok";
+import type { Board } from "@/types/omok";
+import type { LastMovesHighlight, Turn } from "@/types/omok";
 import { formatSheetCellRef } from "@/utils/sheetCellRef";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-const PLAY_COMMANDS = ["help", "status", "restart", "exit", "clear", "cls", "ver", "dir", "whoami"];
+const PLAY_COMMANDS = ["help", "status", "replay", "restart", "exit", "clear", "cls", "ver", "dir", "whoami"];
+
+interface MoveRecord {
+  row: number;
+  col: number;
+  ref: string;
+  by: "player" | "cpu";
+  stone: "black" | "white";
+}
+
+function createEmptyBoard(size: number): Board {
+  return Array.from({ length: size }, () => Array.from({ length: size }, () => null));
+}
+
+function replayBoardFromMoves(baseSize: number, moves: MoveRecord[], appliedCount: number): Board {
+  const next = createEmptyBoard(baseSize);
+  for (let i = 0; i < appliedCount; i += 1) {
+    const move = moves[i];
+    if (!move) break;
+    next[move.row][move.col] = move.stone;
+  }
+  return next;
+}
+
+function replayLastMovesFromRecords(records: MoveRecord[], appliedCount: number): LastMovesHighlight {
+  const applied = records.slice(0, appliedCount);
+  let human: LastMovesHighlight["human"] = null;
+  let ai: LastMovesHighlight["ai"] = null;
+  for (const move of applied) {
+    if (move.by === "player") human = { row: move.row, col: move.col };
+    if (move.by === "cpu") ai = { row: move.row, col: move.col };
+  }
+  return { human, ai };
+}
+
+function replayCurrentTurnFromRecords(records: MoveRecord[], appliedCount: number): Turn {
+  const latest = records[appliedCount - 1];
+  if (!latest) return "black";
+  return latest.stone === "black" ? "white" : "black";
+}
 
 function turnToStoneLabel(turn: "black" | "white"): string {
   return turn === "black" ? "BLACK (X)" : "WHITE (O)";
@@ -96,6 +137,22 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
   const humanLogTimersRef = useRef<number[]>([]);
   const [focusRef, setFocusRef] = useState("A1");
   const [workDisguiseOpen, setWorkDisguiseOpen] = useState(false);
+  const [moveRecords, setMoveRecords] = useState<MoveRecord[]>([]);
+  const moveRecordsRef = useRef<MoveRecord[]>([]);
+  const replayTimersRef = useRef<number[]>([]);
+  const gameEndedHandledRef = useRef(false);
+  const [replayBoard, setReplayBoard] = useState<Board>(() =>
+    createEmptyBoard(game.board.length),
+  );
+  const [replayStep, setReplayStep] = useState(0);
+  const [replayRunning, setReplayRunning] = useState(false);
+  const replayLastMoves = replayLastMovesFromRecords(moveRecords, replayStep);
+  const boardToRender = game.status === "playing" ? game.board : replayBoard;
+  const currentTurnToRender =
+    game.status === "playing"
+      ? game.currentTurn
+      : replayCurrentTurnFromRecords(moveRecords, replayStep);
+  const statusToRender = game.status === "playing" || replayRunning ? "playing" : game.status;
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -130,8 +187,14 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
       aiLogTimersRef.current = [];
       humanLogTimersRef.current.forEach((id) => window.clearTimeout(id));
       humanLogTimersRef.current = [];
+      replayTimersRef.current.forEach((id) => window.clearTimeout(id));
+      replayTimersRef.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    moveRecordsRef.current = moveRecords;
+  }, [moveRecords]);
 
   useEffect(() => {
     const aiTurn = game.status === "playing" && game.currentTurn === game.aiStone;
@@ -173,12 +236,26 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
     const ref = formatSheetCellRef(move.row, move.col);
     if (prevAiMoveRef.current === ref) return;
     prevAiMoveRef.current = ref;
+    setMoveRecords((prev) => {
+      const next = [
+        ...prev,
+        {
+          row: move.row,
+          col: move.col,
+          ref,
+          by: "cpu" as const,
+          stone: game.aiStone,
+        },
+      ];
+      moveRecordsRef.current = next;
+      return next;
+    });
     const t = window.setTimeout(() => {
       setLogs((prev) => [...prev, `[MOVE] CPU placed stone at ${ref}`]);
       setFocusRef(ref);
     }, 0);
     return () => clearTimeout(t);
-  }, [game.lastMoves.ai]);
+  }, [game.aiStone, game.lastMoves.ai]);
 
   useEffect(() => {
     const move = game.lastMoves.human;
@@ -186,6 +263,20 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
     const ref = formatSheetCellRef(move.row, move.col);
     if (prevHumanMoveRef.current === ref) return;
     prevHumanMoveRef.current = ref;
+    setMoveRecords((prev) => {
+      const next = [
+        ...prev,
+        {
+          row: move.row,
+          col: move.col,
+          ref,
+          by: "player" as const,
+          stone: config.playerColor,
+        },
+      ];
+      moveRecordsRef.current = next;
+      return next;
+    });
     const t1 = window.setTimeout(() => {
       setLogs((prev) => [
         ...prev,
@@ -208,15 +299,54 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
   }, [config.playerColor, game.lastMoves.human]);
 
   useEffect(() => {
-    if (game.status === "playing") return;
-    const turns = game.board.reduce(
-      (acc, row) => acc + row.reduce((n, cell) => n + (cell ? 1 : 0), 0),
-      0,
-    );
-    sessionStorage.setItem("maskplay:omok:last-turns", String(turns));
-    const q = new URLSearchParams({ outcome: game.status });
-    router.replace(`/games/omok/result?${q.toString()}`);
-  }, [game.board, game.status, router]);
+    if (game.status === "playing") {
+      gameEndedHandledRef.current = false;
+      return;
+    }
+    if (gameEndedHandledRef.current) return;
+    gameEndedHandledRef.current = true;
+    const records = moveRecordsRef.current;
+    const outcomeLine =
+      game.status === "draw"
+        ? "[RESULT] Match ended in DRAW."
+        : game.status === `${config.playerColor}-win`
+          ? "[RESULT] You WIN."
+          : "[RESULT] You LOSE.";
+    setLogs((prev) => [
+      ...prev,
+      "--------------------------------",
+      outcomeLine,
+      `[RESULT] Total turns: ${records.length}`,
+      "[REPLAY] Reconstructing final match sequence on board...",
+    ]);
+    replayTimersRef.current.forEach((id) => window.clearTimeout(id));
+    replayTimersRef.current = [];
+    setReplayBoard(createEmptyBoard(game.board.length));
+    setReplayStep(0);
+    setReplayRunning(true);
+
+    if (records.length === 0) {
+      setLogs((prev) => [...prev, "[REPLAY] No moves to replay."]);
+      setReplayRunning(false);
+      return;
+    }
+
+    records.forEach((_, idx) => {
+      const timer = window.setTimeout(() => {
+        const applied = idx + 1;
+        setReplayBoard(replayBoardFromMoves(game.board.length, records, applied));
+        setReplayStep(applied);
+        if (applied === records.length) {
+          setReplayRunning(false);
+          setLogs((prev) => [
+            ...prev,
+            "[REPLAY] Replay completed. Type 'replay' to run again or 'restart' for a new game.",
+          ]);
+        }
+      }, (idx + 1) * 380);
+      replayTimersRef.current.push(timer);
+    });
+  }, [config.playerColor, game.board.length, game.status]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -230,7 +360,7 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
     if (cmd === "help") {
       setLogs((prev) => [
         ...prev,
-        "commands: help, status, restart, exit, clear/cls, ver, dir, whoami | coordinate input: A1~O15 (example: H8, K12)",
+        "commands: help, status, replay, restart, exit, clear/cls, ver, dir, whoami | coordinate input: A1~O15 (example: H8, K12)",
       ]);
       return;
     }
@@ -241,8 +371,52 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
       ]);
       return;
     }
+    if (cmd === "replay") {
+      if (game.status === "playing") {
+        setLogs((prev) => [...prev, "[ERR ] Replay is available after match end only."]);
+        return;
+      }
+      const records = moveRecordsRef.current;
+      replayTimersRef.current.forEach((id) => window.clearTimeout(id));
+      replayTimersRef.current = [];
+      setReplayBoard(createEmptyBoard(game.board.length));
+      setReplayStep(0);
+      if (records.length === 0) {
+        setLogs((prev) => [...prev, "[REPLAY] No moves to replay."]);
+        setReplayRunning(false);
+        return;
+      }
+      setReplayRunning(true);
+      setLogs((prev) => [
+        ...prev,
+        `[REPLAY] Restarting board playback (${records.length} moves).`,
+      ]);
+      records.forEach((_, idx) => {
+        const timer = window.setTimeout(() => {
+          const applied = idx + 1;
+          setReplayBoard(replayBoardFromMoves(game.board.length, records, applied));
+          setReplayStep(applied);
+          if (applied === records.length) {
+            setReplayRunning(false);
+            setLogs((prev) => [...prev, "[REPLAY] Replay completed."]);
+          }
+        }, (idx + 1) * 380);
+        replayTimersRef.current.push(timer);
+      });
+      return;
+    }
     if (cmd === "restart") {
       setLogs((prev) => [...prev, "[INFO] Restart command received; resetting board matrix, move history, and active turn sequencing for a fresh session."]);
+      replayTimersRef.current.forEach((id) => window.clearTimeout(id));
+      replayTimersRef.current = [];
+      setMoveRecords([]);
+      moveRecordsRef.current = [];
+      setReplayBoard(createEmptyBoard(game.board.length));
+      setReplayStep(0);
+      setReplayRunning(false);
+      gameEndedHandledRef.current = false;
+      prevAiMoveRef.current = null;
+      prevHumanMoveRef.current = null;
       game.restart();
       return;
     }
@@ -349,12 +523,17 @@ function OmokPlayCmdInner({ config }: { config: OmokSetupConfig }) {
           </p>
         </div>
         <OmokBoardCmd
-          board={game.board}
-          currentTurn={game.currentTurn}
+          board={boardToRender}
+          currentTurn={currentTurnToRender}
           humanStone={config.playerColor}
-          status={game.status}
-          lastMoves={game.lastMoves}
+          status={statusToRender}
+          lastMoves={game.status === "playing" ? game.lastMoves : replayLastMoves}
         />
+        {game.status !== "playing" ? (
+          <p className="text-xs text-zinc-400">
+            replay={replayRunning ? "RUNNING" : "DONE"} step={replayStep}/{moveRecords.length}
+          </p>
+        ) : null}
         <div className="flex min-h-14 h-52 flex-1 flex-col overflow-hidden whitespace-nowrap text-[11px] leading-4 text-zinc-300 sm:h-60 lg:h-72">
           <div
             ref={logRef}
