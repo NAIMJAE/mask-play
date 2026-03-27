@@ -9,6 +9,7 @@ const HELP_LINES = [
   "Available commands:",
   "  help",
   "  games | list",
+  "  1 | 2",
   "  select omok",
   "  select bricks",
   "  open omok",
@@ -21,6 +22,8 @@ const HELP_LINES = [
 
 const COMPLETIONS = [
   "help",
+  "1",
+  "2",
   "games",
   "list",
   "select omok",
@@ -99,7 +102,15 @@ export function CmdGameSelectClient() {
       startOmok();
       return;
     }
+    if (lower === "1") {
+      startOmok();
+      return;
+    }
     if (lower === "select bricks" || lower === "open bricks" || lower === "play bricks") {
+      startBricks();
+      return;
+    }
+    if (lower === "2") {
       startBricks();
       return;
     }

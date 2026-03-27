@@ -1,6 +1,6 @@
 export type BricksSkin = "cmd";
 
-export type BricksItemType = "WIDEBAR" | "PLUSBALL" | "SLOWMO";
+export type BricksItemType = "WIDEBAR" | "PLUSBALL" | "FAST";
 export type BricksStageId = "ls" | "ps" | "top" | "grep" | "netstat";
 
 export interface BricksSetupConfig {

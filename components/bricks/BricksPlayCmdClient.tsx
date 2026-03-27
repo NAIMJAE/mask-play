@@ -58,19 +58,19 @@ const COMMANDS = [
 ];
 
 function pickWeighted(weights: Record<BricksItemType, number>): BricksItemType {
-  const total = weights.WIDEBAR + weights.PLUSBALL + weights.SLOWMO;
+  const total = weights.WIDEBAR + weights.PLUSBALL + weights.FAST;
   let n = Math.random() * total;
   if (n < weights.WIDEBAR) return "WIDEBAR";
   n -= weights.WIDEBAR;
   if (n < weights.PLUSBALL) return "PLUSBALL";
-  return "SLOWMO";
+  return "FAST";
 }
 
 function toGrid(value: number): number {
   return Math.round(value / GRID_STEP) * GRID_STEP;
 }
 
-function normalizeBallSpeed(ball: Ball, target = 5.2): Ball {
+function normalizeBallSpeed(ball: Ball, target = 12.8): Ball {
   const m = Math.hypot(ball.vx, ball.vy) || 1;
   const k = target / m;
   let vx = toGrid(ball.vx * k);
@@ -78,6 +78,10 @@ function normalizeBallSpeed(ball: Ball, target = 5.2): Ball {
   if (vx === 0) vx = ball.vx >= 0 ? GRID_STEP : -GRID_STEP;
   if (vy === 0) vy = ball.vy >= 0 ? GRID_STEP : -GRID_STEP;
   return { ...ball, vx, vy };
+}
+
+function speedTargetFor(fastLevel: number): number {
+  return Math.min(24, 12.8 + fastLevel * 3.2);
 }
 
 function stageFromCommand(lower: string): BricksStageId | null {
@@ -148,7 +152,7 @@ export function BricksPlayCmdClient() {
     bricksLeft: 0,
     balls: 1,
     paddleW: BASE_PADDLE_UNITS * PADDLE_UNIT_PX,
-    slowmoLevel: 0,
+    fastLevel: 0,
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -164,7 +168,7 @@ export function BricksPlayCmdClient() {
     w: BASE_PADDLE_UNITS * PADDLE_UNIT_PX,
     units: BASE_PADDLE_UNITS,
   });
-  const itemStatsRef = useRef({ widebar: 0, plusball: 0, slowmo: 0 });
+  const itemStatsRef = useRef({ widebar: 0, plusball: 0, fast: 0 });
   const lockRef = useRef<RunStatus>("running");
 
   const stageInfo = useMemo(() => STAGE_BLUEPRINTS[stage], [stage]);
@@ -275,7 +279,7 @@ export function BricksPlayCmdClient() {
       bricksLeft: out.length,
       balls: 1 + itemStatsRef.current.plusball,
       paddleW: paddleRef.current.w,
-      slowmoLevel: itemStatsRef.current.slowmo,
+      fastLevel: itemStatsRef.current.fast,
     });
   };
 
@@ -309,9 +313,10 @@ export function BricksPlayCmdClient() {
       pushLog(`[ITEM] PLUSBALL applied. Active balls: ${ballsRef.current.length}.`);
       return;
     }
-    itemStatsRef.current.slowmo += 1;
-    ballsRef.current = ballsRef.current.map((ball) => normalizeBallSpeed(ball, Math.max(2.5, 5.2 - itemStatsRef.current.slowmo * 0.65)));
-    pushLog(`[ITEM] SLOWMO applied. Ball speed reduced (level ${itemStatsRef.current.slowmo}).`);
+    itemStatsRef.current.fast += 1;
+    const target = speedTargetFor(itemStatsRef.current.fast);
+    ballsRef.current = ballsRef.current.map((ball) => normalizeBallSpeed(ball, target));
+    pushLog(`[ITEM] FAST applied. Ball speed increased (level ${itemStatsRef.current.fast}).`);
   };
 
   useEffect(() => {
@@ -415,7 +420,7 @@ export function BricksPlayCmdClient() {
             const rel = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
             ball.vx = toGrid(rel * (GRID_STEP * 2));
             ball.vy = -Math.abs(ball.vy);
-            ball = normalizeBallSpeed(ball, Math.max(2.5, 5.2 - itemStatsRef.current.slowmo * 0.65));
+            ball = normalizeBallSpeed(ball, speedTargetFor(itemStatsRef.current.fast));
           }
 
           let hitBrick = false;
@@ -498,7 +503,7 @@ export function BricksPlayCmdClient() {
           bricksLeft: aliveBricks,
           balls: ballsRef.current.length,
           paddleW: paddleRef.current.w,
-          slowmoLevel: itemStatsRef.current.slowmo,
+          fastLevel: itemStatsRef.current.fast,
         });
       }
 
@@ -547,13 +552,13 @@ export function BricksPlayCmdClient() {
   }, [router, stage, workDisguiseOpen]);
 
   const restartCurrent = () => {
-    itemStatsRef.current = { widebar: 0, plusball: 0, slowmo: 0 };
+    itemStatsRef.current = { widebar: 0, plusball: 0, fast: 0 };
     buildStage(stage);
     pushLog("[INFO] Full restart executed.");
   };
 
   const goStage = (target: BricksStageId) => {
-    itemStatsRef.current = { widebar: 0, plusball: 0, slowmo: 0 };
+    itemStatsRef.current = { widebar: 0, plusball: 0, fast: 0 };
     setStage(target);
   };
 
@@ -575,7 +580,7 @@ export function BricksPlayCmdClient() {
     }
     if (lower === "status") {
       pushLog(
-        `[INFO] stage=${stage} bricksLeft=${hud.bricksLeft} balls=${hud.balls} paddleW=${Math.round(hud.paddleW)} slowmo=${hud.slowmoLevel} state=${status}`,
+        `[INFO] stage=${stage} bricksLeft=${hud.bricksLeft} balls=${hud.balls} paddleW=${Math.round(hud.paddleW)} fast=${hud.fastLevel} state=${status}`,
       );
       return;
     }
