@@ -48,8 +48,8 @@ export const STAGE_BLUEPRINTS: Record<BricksStageId, StageBlueprint> = {
     words: ["DRWX", "ROOT", "README", "CONFIG", "VAR", "HOME", "ETC", "BIN"],
     brickCount: 18,
     phaseCount: 2,
-    specialCount: 4,
-    itemWeights: { WIDEBAR: 55, PLUSBALL: 20, FAST: 25 },
+    specialCount: 16,
+    itemWeights: { WIDE: 55, BALL: 20, DOUBLE: 25 },
   },
   ps: {
     stageId: "ps",
@@ -66,8 +66,8 @@ export const STAGE_BLUEPRINTS: Record<BricksStageId, StageBlueprint> = {
     words: ["ROOT", "KTHREAD", "KWORKER", "SYSTEMD", "TTY", "TIME", "CMD", "PID", "PPID"],
     brickCount: 22,
     phaseCount: 3,
-    specialCount: 4,
-    itemWeights: { WIDEBAR: 40, PLUSBALL: 25, FAST: 35 },
+    specialCount: 16,
+    itemWeights: { WIDE: 40, BALL: 25, DOUBLE: 35 },
   },
   top: {
     stageId: "top",
@@ -85,8 +85,8 @@ export const STAGE_BLUEPRINTS: Record<BricksStageId, StageBlueprint> = {
     words: ["CPU", "MEM", "SWAP", "TASK", "LOAD", "COMMAND", "SYSTEMD", "RUNNING"],
     brickCount: 24,
     phaseCount: 3,
-    specialCount: 8,
-    itemWeights: { WIDEBAR: 28, PLUSBALL: 44, FAST: 28 },
+    specialCount: 32,
+    itemWeights: { WIDE: 28, BALL: 44, DOUBLE: 28 },
   },
   grep: {
     stageId: "grep",
@@ -103,8 +103,8 @@ export const STAGE_BLUEPRINTS: Record<BricksStageId, StageBlueprint> = {
     words: ["ERROR", "FAILED", "TOKEN", "PANIC", "QUEUE", "RUNTIME", "LIMIT", "TIMEOUT"],
     brickCount: 20,
     phaseCount: 4,
-    specialCount: 12,
-    itemWeights: { WIDEBAR: 25, PLUSBALL: 35, FAST: 40 },
+    specialCount: 48,
+    itemWeights: { WIDE: 25, BALL: 35, DOUBLE: 40 },
   },
   netstat: {
     stageId: "netstat",
@@ -121,8 +121,8 @@ export const STAGE_BLUEPRINTS: Record<BricksStageId, StageBlueprint> = {
     words: ["LISTEN", "TCP", "UDP", "PORT", "STATE", "LOCAL", "FOREIGN", "ESTABLISHED"],
     brickCount: 26,
     phaseCount: 5,
-    specialCount: 16,
-    itemWeights: { WIDEBAR: 20, PLUSBALL: 48, FAST: 32 },
+    specialCount: 64,
+    itemWeights: { WIDE: 20, BALL: 48, DOUBLE: 32 },
   },
 };
 

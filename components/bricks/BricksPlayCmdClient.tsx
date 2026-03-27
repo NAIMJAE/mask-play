@@ -24,9 +24,17 @@ type Brick = {
   text: string;
   hp: number;
   hpMax: number;
-  mode: "normal" | "item";
   itemType: BricksItemType | null;
   destroyed: boolean;
+};
+type FallingItem = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  type: BricksItemType;
+  vy: number;
 };
 
 type RunStatus = "running" | "clearing" | "failed";
@@ -40,9 +48,12 @@ const PADDLE_H = 12;
 const BALL_R = 6;
 const GRID_STEP = 6;
 const TICK_MS = 64;
-const PADDLE_STEP = GRID_STEP * 3;
+const PADDLE_STEP = GRID_STEP * 4;
 const BRICK_FONT_PX = 14;
 const BRICK_CHAR_PX = 8; // monospace 기준 문자 1칸 폭 추정치
+const ITEM_FALL_SPEED = GRID_STEP;
+const DOUBLE_MAX_STACK = 2;
+const CLEAR_FIREWORK_MS = 7000;
 
 const COMMANDS = [
   "help",
@@ -55,16 +66,29 @@ const COMMANDS = [
   "stage netstat",
   "clear",
   "cls",
+  "back",
   "exit",
 ];
 
-function pickWeighted(weights: Record<BricksItemType, number>): BricksItemType {
-  const total = weights.WIDEBAR + weights.PLUSBALL + weights.FAST;
-  let n = Math.random() * total;
-  if (n < weights.WIDEBAR) return "WIDEBAR";
-  n -= weights.WIDEBAR;
-  if (n < weights.PLUSBALL) return "PLUSBALL";
-  return "FAST";
+const ITEM_DROP_WEIGHTS: Record<BricksItemType, number> = {
+  BALL: 40,
+  WIDE: 20,
+  DOUBLE: 10,
+};
+
+function pickWeighted(): BricksItemType | null {
+  const weights = ITEM_DROP_WEIGHTS;
+  const dropTotal = weights.WIDE + weights.BALL + weights.DOUBLE;
+  const noDrop = Math.max(0, 100 - dropTotal);
+  let roll = Math.random() * 100;
+  if (roll < noDrop) return null;
+  roll -= noDrop;
+  const total = weights.WIDE + weights.BALL + weights.DOUBLE;
+  let n = (roll / dropTotal) * total;
+  if (n < weights.WIDE) return "WIDE";
+  n -= weights.WIDE;
+  if (n < weights.BALL) return "BALL";
+  return "DOUBLE";
 }
 
 function toGrid(value: number): number {
@@ -81,9 +105,7 @@ function normalizeBallSpeed(ball: Ball, target = 10.8): Ball {
   return { ...ball, vx, vy };
 }
 
-function speedTargetFor(fastLevel: number): number {
-  return Math.min(20, 10.8 + fastLevel * 2.4);
-}
+const BASE_BALL_SPEED = 10.8;
 
 function resolvePaddleBounceVx(rel: number): number {
   // Discrete hit-zones for terminal-like, but varied rebound angles.
@@ -126,6 +148,12 @@ function applyProgressiveMask(text: string, damageCount: number): string {
   return chars.join("");
 }
 
+function ballColorForDoubleStack(doubleStack: number): string {
+  if (doubleStack >= 2) return "#FF8C1A";
+  if (doubleStack >= 1) return "#20FF1F";
+  return "#a1a1aa";
+}
+
 function CmdWorkDisguiseOverlay() {
   return (
     <div className="absolute inset-0 z-30 bg-black/95 font-mono text-[11px] leading-4 text-zinc-200">
@@ -164,7 +192,7 @@ export function BricksPlayCmdClient() {
     bricksLeft: 0,
     balls: 1,
     paddleW: BASE_PADDLE_UNITS * PADDLE_UNIT_PX,
-    fastLevel: 0,
+    doubleLevel: 0,
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -175,13 +203,15 @@ export function BricksPlayCmdClient() {
   const lastTickRef = useRef(0);
   const bricksRef = useRef<Brick[]>([]);
   const ballsRef = useRef<Ball[]>([]);
+  const itemsRef = useRef<FallingItem[]>([]);
   const paddleRef = useRef({
     x: WIDTH / 2 - (BASE_PADDLE_UNITS * PADDLE_UNIT_PX) / 2,
     w: BASE_PADDLE_UNITS * PADDLE_UNIT_PX,
     units: BASE_PADDLE_UNITS,
   });
-  const itemStatsRef = useRef({ widebar: 0, plusball: 0, fast: 0 });
+  const itemStatsRef = useRef({ wide: 0, ball: 0, double: 0 });
   const lockRef = useRef<RunStatus>("running");
+  const clearStartedAtRef = useRef<number | null>(null);
 
   const stageInfo = useMemo(() => STAGE_BLUEPRINTS[stage], [stage]);
 
@@ -212,7 +242,8 @@ export function BricksPlayCmdClient() {
     const rowTop = 54;
     const rowStep = 22;
     const baseX = 16;
-    const tokenGap = 8;
+    const tokenGap =
+      targetStage === "ls" || targetStage === "top" ? 14 : 8;
     const brickH = 24;
     const maxY = HEIGHT - 74;
     const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
@@ -226,14 +257,7 @@ export function BricksPlayCmdClient() {
       return w;
     });
 
-    const specialIndices = new Set<number>();
-    const allTokenCount = rows.reduce((n, r) => n + r.length, 0);
-    while (specialIndices.size < bp.specialCount && specialIndices.size < allTokenCount) {
-      specialIndices.add(Math.floor(Math.random() * allTokenCount));
-    }
-
     const out: Brick[] = [];
-    let globalIndex = 0;
     let visualRow = 0;
     let stop = false;
     for (let row = 0; row < rows.length; row++) {
@@ -243,9 +267,6 @@ export function BricksPlayCmdClient() {
       for (let col = 0; col < tokens.length; col++) {
         const baseWord = (tokens[col] ?? "").toUpperCase();
         if (!baseWord) continue;
-        const isSpecial = specialIndices.has(globalIndex);
-        globalIndex += 1;
-        const itemType = isSpecial ? pickWeighted(bp.itemWeights) : null;
         const textW = phaseWidthFor(baseWord);
         const colW = colWidths[col] ?? textW;
         if (cursorX + colW > WIDTH - 12) {
@@ -268,8 +289,7 @@ export function BricksPlayCmdClient() {
           text: baseWord,
           hp: phaseHpFor(baseWord),
           hpMax: phaseHpFor(baseWord),
-          mode: "normal",
-          itemType,
+          itemType: null,
           destroyed: false,
         };
         out.push(brick);
@@ -278,6 +298,7 @@ export function BricksPlayCmdClient() {
       visualRow += 1;
     }
     bricksRef.current = out;
+    itemsRef.current = [];
 
     ballsRef.current = [
       normalizeBallSpeed({
@@ -290,31 +311,32 @@ export function BricksPlayCmdClient() {
     ];
 
     paddleRef.current = {
-      x: toGrid(WIDTH / 2 - (BASE_PADDLE_UNITS + itemStatsRef.current.widebar) * PADDLE_UNIT_PX / 2),
-      w: (BASE_PADDLE_UNITS + itemStatsRef.current.widebar) * PADDLE_UNIT_PX,
-      units: BASE_PADDLE_UNITS + itemStatsRef.current.widebar,
+      x: toGrid(WIDTH / 2 - (BASE_PADDLE_UNITS + itemStatsRef.current.wide) * PADDLE_UNIT_PX / 2),
+      w: (BASE_PADDLE_UNITS + itemStatsRef.current.wide) * PADDLE_UNIT_PX,
+      units: BASE_PADDLE_UNITS + itemStatsRef.current.wide,
     };
     lastTickRef.current = performance.now();
     lockRef.current = "running";
+    clearStartedAtRef.current = null;
     setStatus("running");
     setHud({
       stageTitle: bp.title,
       bricksLeft: out.length,
-      balls: 1 + itemStatsRef.current.plusball,
+      balls: 1 + itemStatsRef.current.ball,
       paddleW: paddleRef.current.w,
-      fastLevel: itemStatsRef.current.fast,
+      doubleLevel: itemStatsRef.current.double,
     });
   };
 
   const applyItem = (itemType: BricksItemType) => {
-    if (itemType === "WIDEBAR") {
-      itemStatsRef.current.widebar += 1;
+    if (itemType === "WIDE") {
+      itemStatsRef.current.wide += 1;
       paddleRef.current.units = Math.min(18, paddleRef.current.units + 1);
       paddleRef.current.w = paddleRef.current.units * PADDLE_UNIT_PX;
-      pushLog(`[ITEM] WIDEBAR applied. Paddle token expanded to '${"=".repeat(paddleRef.current.units)}'.`);
+      pushLog(`[ITEM] WIDE applied. Paddle token expanded to '${"=".repeat(paddleRef.current.units)}'.`);
       return;
     }
-    if (itemType === "PLUSBALL") {
+    if (itemType === "BALL") {
       const src = ballsRef.current[0];
       const base = src ?? {
         x: WIDTH / 2,
@@ -332,14 +354,25 @@ export function BricksPlayCmdClient() {
           r: BALL_R,
         }),
       );
-      itemStatsRef.current.plusball += 1;
-      pushLog(`[ITEM] PLUSBALL applied. Active balls: ${ballsRef.current.length}.`);
+      ballsRef.current.push(
+        normalizeBallSpeed({
+          x: toGrid(base.x),
+          y: toGrid(base.y),
+          vx: toGrid(base.vx + (Math.random() < 0.5 ? -GRID_STEP : GRID_STEP)),
+          vy: base.vy,
+          r: BALL_R,
+        }),
+      );
+      itemStatsRef.current.ball += 2;
+      pushLog(`[ITEM] BALL applied. +2 balls (active: ${ballsRef.current.length}).`);
       return;
     }
-    itemStatsRef.current.fast += 1;
-    const target = speedTargetFor(itemStatsRef.current.fast);
-    ballsRef.current = ballsRef.current.map((ball) => normalizeBallSpeed(ball, target));
-    pushLog(`[ITEM] FAST applied. Ball speed increased (level ${itemStatsRef.current.fast}).`);
+    if (itemStatsRef.current.double >= DOUBLE_MAX_STACK) {
+      pushLog(`[ITEM] DOUBLE ignored. Max stack reached (${DOUBLE_MAX_STACK}).`);
+      return;
+    }
+    itemStatsRef.current.double += 1;
+    pushLog(`[ITEM] DOUBLE applied. Ball damage multiplier is now x${1 + itemStatsRef.current.double}.`);
   };
 
   useEffect(() => {
@@ -413,6 +446,12 @@ export function BricksPlayCmdClient() {
         );
 
         const nextBalls: Ball[] = [];
+        const nextItems = itemsRef.current
+          .map((item) => ({
+            ...item,
+            y: toGrid(item.y + item.vy),
+          }))
+          .filter((item) => item.y <= HEIGHT + item.h + 4);
         const bricks = bricksRef.current;
 
         for (const ball0 of ballsRef.current) {
@@ -445,7 +484,7 @@ export function BricksPlayCmdClient() {
             const rel = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
             ball.vx = resolvePaddleBounceVx(rel);
             ball.vy = -Math.abs(ball.vy);
-            ball = normalizeBallSpeed(ball, speedTargetFor(itemStatsRef.current.fast));
+            ball = normalizeBallSpeed(ball, BASE_BALL_SPEED);
           }
 
           let hitBrick = false;
@@ -476,21 +515,23 @@ export function BricksPlayCmdClient() {
               if (overlapTop < overlapBottom) ball.y = toGrid(brick.y - ball.r - GRID_STEP);
               else ball.y = toGrid(brick.y + brick.h + ball.r + GRID_STEP);
             }
-            brick.hp -= 1;
+            const damage = Math.max(1, 1 + itemStatsRef.current.double);
+            brick.hp -= damage;
             if (brick.hp <= 0) {
-              if (brick.mode === "normal" && brick.itemType) {
-                // Spawn item block in-place after normal block is destroyed.
-                brick.mode = "item";
-                brick.text = brick.itemType;
-                brick.hp = phaseHpFor(brick.text);
-                brick.hpMax = brick.hp;
-                brick.w = phaseWidthFor(brick.text);
-                pushLog(`[WARN] Item block '${brick.itemType}' spawned.`);
-              } else {
-                brick.destroyed = true;
-                if (brick.itemType && brick.mode === "item") {
-                  applyItem(brick.itemType);
-                }
+              brick.destroyed = true;
+              const droppedItem = pickWeighted();
+              if (droppedItem) {
+                const itemW = phaseWidthFor(droppedItem);
+                nextItems.push({
+                  id: `${brick.id}-item-${performance.now()}`,
+                  x: toGrid(brick.x + Math.max(0, (brick.w - itemW) / 2)),
+                  y: toGrid(brick.y),
+                  w: itemW,
+                  h: brick.h,
+                  type: droppedItem,
+                  vy: ITEM_FALL_SPEED,
+                });
+                pushLog(`[DROP] Item '${droppedItem}' dropped.`);
               }
             }
             break;
@@ -503,20 +544,32 @@ export function BricksPlayCmdClient() {
         }
 
         ballsRef.current = nextBalls;
+        const py = HEIGHT - 28;
+        const remainedItems: FallingItem[] = [];
+        for (const item of nextItems) {
+          const touchingPaddle =
+            item.y + item.h >= py &&
+            item.y <= py + PADDLE_H &&
+            item.x + item.w >= paddle.x &&
+            item.x <= paddle.x + paddle.w;
+          if (touchingPaddle) {
+            applyItem(item.type);
+            continue;
+          }
+          remainedItems.push(item);
+        }
+        itemsRef.current = remainedItems;
         const aliveBricks = bricks.filter((b) => !b.destroyed).length;
 
         if (aliveBricks <= 0) {
           lockRef.current = "clearing";
           setStatus("clearing");
-          pushLog("STAGE CLEAR.", "   *    +    x    .    o", "Opening result report...");
-          window.setTimeout(() => {
-            const q = new URLSearchParams({
-              stage: String(stage),
-              result: "clear",
-              balls: String(ballsRef.current.length),
-            });
-            router.replace(`/games/bricks/result?${q.toString()}`);
-          }, 400);
+          clearStartedAtRef.current = performance.now();
+          pushLog(
+            "STAGE CLEAR.",
+            "   *    +    x    .    o",
+            "[INFO] Firework show started. Choose 'restart' or 'back'.",
+          );
         } else if (ballsRef.current.length === 0) {
           lockRef.current = "failed";
           setStatus("failed");
@@ -528,7 +581,7 @@ export function BricksPlayCmdClient() {
           bricksLeft: aliveBricks,
           balls: ballsRef.current.length,
           paddleW: paddleRef.current.w,
-          fastLevel: itemStatsRef.current.fast,
+          doubleLevel: itemStatsRef.current.double,
         });
       }
 
@@ -548,9 +601,13 @@ export function BricksPlayCmdClient() {
         if (brick.destroyed) continue;
         const hpLoss = Math.max(0, brick.hpMax - brick.hp);
         const text = applyProgressiveMask(brick.text, hpLoss);
-        const isItemPhase = brick.mode === "item";
-        ctx.fillStyle = isItemPhase ? "#FF8C1A" : "#e4e4e7";
+        ctx.fillStyle = "#e4e4e7";
         ctx.fillText(text, brick.x, brick.y + brick.h / 2);
+      }
+
+      for (const item of itemsRef.current) {
+        ctx.fillStyle = "#FF8C1A";
+        ctx.fillText(item.type, item.x, item.y + item.h / 2);
       }
 
       const paddle = paddleRef.current;
@@ -560,11 +617,29 @@ export function BricksPlayCmdClient() {
       ctx.textBaseline = "middle";
       ctx.fillText("=".repeat(paddle.units), paddle.x, py + PADDLE_H / 2);
 
+      const ballColor = ballColorForDoubleStack(itemStatsRef.current.double);
       for (const ball of ballsRef.current) {
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-        ctx.fillStyle = "#a1a1aa";
+        ctx.fillStyle = ballColor;
         ctx.fill();
+      }
+
+      if (status === "clearing") {
+        const startedAt = clearStartedAtRef.current ?? now;
+        const elapsed = now - startedAt;
+        if (elapsed <= CLEAR_FIREWORK_MS) {
+          for (let i = 0; i < 22; i += 1) {
+            const fx = 24 + Math.random() * (WIDTH - 48);
+            const fy = 26 + Math.random() * (HEIGHT * 0.45);
+            const r = 1 + Math.random() * 2.8;
+            const colors = ["#20FF1F", "#FF8C1A", "#60A5FA", "#F472B6", "#FACC15"];
+            ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)] ?? "#20FF1F";
+            ctx.beginPath();
+            ctx.arc(fx, fy, r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       }
 
       rafRef.current = requestAnimationFrame(loop);
@@ -574,16 +649,16 @@ export function BricksPlayCmdClient() {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [router, stage, workDisguiseOpen]);
+  }, [stage, status, workDisguiseOpen]);
 
   const restartCurrent = () => {
-    itemStatsRef.current = { widebar: 0, plusball: 0, fast: 0 };
+    itemStatsRef.current = { wide: 0, ball: 0, double: 0 };
     buildStage(stage);
     pushLog("[INFO] Full restart executed.");
   };
 
   const goStage = (target: BricksStageId) => {
-    itemStatsRef.current = { widebar: 0, plusball: 0, fast: 0 };
+    itemStatsRef.current = { wide: 0, ball: 0, double: 0 };
     setStage(target);
   };
 
@@ -599,13 +674,13 @@ export function BricksPlayCmdClient() {
 
     if (lower === "help") {
       pushLog(
-        "commands: help, status, restart, stage ls|ps|top|grep|netstat, clear/cls, exit",
+        "commands: help, status, restart, stage ls|ps|top|grep|netstat, clear/cls, back|exit",
       );
       return;
     }
     if (lower === "status") {
       pushLog(
-        `[INFO] stage=${stage} bricksLeft=${hud.bricksLeft} balls=${hud.balls} paddleW=${Math.round(hud.paddleW)} fast=${hud.fastLevel} state=${status}`,
+        `[INFO] stage=${stage} bricksLeft=${hud.bricksLeft} balls=${hud.balls} paddleW=${Math.round(hud.paddleW)} double=${hud.doubleLevel} state=${status}`,
       );
       return;
     }
@@ -613,8 +688,14 @@ export function BricksPlayCmdClient() {
       restartCurrent();
       return;
     }
-    if (status === "failed" && lower !== "restart" && lower !== "exit" && lower !== "cd ..") {
-      pushLog("[ERR ] In failed state, use 'restart' or 'exit'.");
+    if (
+      (status === "failed" || status === "clearing") &&
+      lower !== "restart" &&
+      lower !== "exit" &&
+      lower !== "back" &&
+      lower !== "cd .."
+    ) {
+      pushLog("[ERR ] In finished state, use 'restart' or 'back'.");
       return;
     }
     const stageCmd = stageFromCommand(lower);
@@ -626,7 +707,7 @@ export function BricksPlayCmdClient() {
       setLogs([]);
       return;
     }
-    if (lower === "exit" || lower === "cd ..") {
+    if (lower === "exit" || lower === "back" || lower === "cd ..") {
       router.push("/games/cmd");
       return;
     }
@@ -732,8 +813,8 @@ export function BricksPlayCmdClient() {
             RIGHT ▶
           </button>
         </div>
-        {status === "failed" ? (
-          <div className="flex w-full max-w-[560px] self-start gap-2 md:hidden">
+        {status !== "running" ? (
+          <div className="flex w-full max-w-[560px] self-start gap-2">
             <button
               type="button"
               onClick={restartCurrent}
@@ -746,9 +827,9 @@ export function BricksPlayCmdClient() {
               type="button"
               onClick={() => router.push("/games/cmd")}
               className="flex-1 border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 active:bg-zinc-800"
-              aria-label="exit game"
+              aria-label="back to cmd games"
             >
-              EXIT
+              BACK
             </button>
           </div>
         ) : null}
